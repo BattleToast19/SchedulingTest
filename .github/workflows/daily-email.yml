@@ -14,7 +14,7 @@ on:
 
 jobs:
   send:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       # Scheduled runs only proceed when it's actually the 12:00 hour in Denver,
       # so exactly one of the two cron entries above does the work year-round.
@@ -29,14 +29,13 @@ jobs:
             echo "go=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         if: steps.gate.outputs.go == 'true'
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         if: steps.gate.outputs.go == 'true'
         with:
           python-version: "3.12"
-          cache: pip
 
       - name: Install dependencies
         if: steps.gate.outputs.go == 'true'
