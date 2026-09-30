@@ -1,0 +1,55 @@
+name: Daily self-email
+
+on:
+  schedule:
+    # GitHub cron is always UTC. Two entries cover daylight saving:
+    - cron: "5 18 * * *"   # 12:05 Mountain Daylight Time (UTC-6)
+    - cron: "5 19 * * *"   # 12:05 Mountain Standard Time (UTC-7)
+  workflow_dispatch:       # adds a manual "Run workflow" button
+    inputs:
+      dry_run:
+        description: "Dry run (print only, do not send)"
+        type: boolean
+        default: true
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      # Scheduled runs only proceed when it's actually the 12:00 hour in Denver,
+      # so exactly one of the two cron entries above does the work year-round.
+      # Manual runs skip this check.
+      - name: Time gate
+        id: gate
+        run: |
+          if [ "${{ github.event_name }}" = "schedule" ] && [ "$(TZ=America/Denver date +%H)" != "12" ]; then
+            echo "Not the 12:00 hour in America/Denver, skipping."
+            echo "go=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "go=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.gate.outputs.go == 'true'
+
+      - uses: actions/setup-python@v5
+        if: steps.gate.outputs.go == 'true'
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        if: steps.gate.outputs.go == 'true'
+        run: pip install -r requirements.txt
+
+      - name: Send email
+        if: steps.gate.outputs.go == 'true'
+        env:
+          GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+        run: |
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            python send_email.py --dry-run
+          else
+            python send_email.py
+          fi
